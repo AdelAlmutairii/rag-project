@@ -61,13 +61,18 @@ def main() -> None:
         logging.basicConfig(level=logging.INFO, force=True)
 
     try:
-        settings = Settings()
+        base_settings = Settings()
     except Exception as exc:
         console.print(f"[red]Configuration error:[/red] {exc}")
         sys.exit(1)
 
+    # Use model_copy() rather than mutating the Settings instance directly.
+    # Direct attribute assignment on a Pydantic model is an antipattern and
+    # bypasses validation; model_copy creates a properly validated new instance.
+    overrides: dict = {}
     if args.k:
-        settings.retrieval_k = args.k
+        overrides["retrieval_k"] = args.k
+    settings = base_settings.model_copy(update=overrides) if overrides else base_settings
 
     with console.status("[dim]Loading model…[/dim]"):
         pipeline = RAGPipeline(settings)
@@ -104,6 +109,10 @@ def _repl(pipeline: RAGPipeline, source_filter: str | None, use_history: bool) -
     if source_filter:
         console.print(f"[dim]Filtered to: {source_filter}[/dim]")
 
+    # Each entry is a full injected message dict (role + content with sources).
+    # Storing the complete content — not just the bare question — ensures the
+    # LLM can see the supporting context from prior turns when generating
+    # follow-up answers, preventing groundless references to earlier answers.
     chat_history: list[dict[str, str]] = []
 
     while True:
@@ -160,12 +169,21 @@ def _repl(pipeline: RAGPipeline, source_filter: str | None, use_history: bool) -
 
         r = result.retrieval
         console.print(
-            f"[dim]distance: {r.best_score:.4f} | threshold: {r.threshold:.2f} "
-            f"| chunks used: {len(r.filtered)}[/dim]"
+            f"[dim]best L2: {r.best_score:.4f} | threshold: {r.threshold:.2f} "
+            f"| chunks used: {len(r.filtered)}"
+            + (" | reranked" if r.reranked else "")
+            + "[/dim]"
         )
 
         if use_history:
-            chat_history.append({"role": "user", "content": question})
+            # Store the full injected user message (with source context) so
+            # future turns have the grounding material, not just the bare question.
+            injected_user_content = (
+                f"Sources:\n{result.injected_context}\n\nQuestion: {question}"
+                if result.injected_context
+                else question
+            )
+            chat_history.append({"role": "user", "content": injected_user_content})
             chat_history.append({"role": "assistant", "content": result.answer})
 
 
@@ -177,11 +195,23 @@ def _print_sources(sources: list[dict]) -> None:
     t.add_column("Match", justify="center")
     t.add_column("Excerpt")
     for i, src in enumerate(sources, 1):
-        sim = max(0.0, 1.0 - src["score"])
+        score = src["score"]
+        # Correct cosine similarity from L2 distance on normalized embeddings:
+        #   cos_sim = 1 - (L2² / 2)
+        # The old formula `1 - L2` understated similarity by up to 50 percentage
+        # points at mid-range distances (e.g., L2=0.5 → was shown as 50%, actual 87%).
+        if src.get("reranked"):
+            # After reranking, score is a cross-encoder logit (higher = better).
+            # Sigmoid maps it to a 0–100% probability-like display value.
+            import math
+            display_pct = 1.0 / (1.0 + math.exp(-score))
+        else:
+            cos_sim = max(0.0, 1.0 - score ** 2 / 2.0)
+            display_pct = cos_sim
         excerpt = src["text"][:120].replace("\n", " ")
         if len(src["text"]) > 120:
             excerpt += "…"
-        t.add_row(str(i), src["source"], str(src["page"]), f"{sim:.0%}", excerpt)
+        t.add_row(str(i), src["source"], str(src["page"]), f"{display_pct:.0%}", excerpt)
     console.print(t)
 
 

@@ -8,14 +8,19 @@ from .config import Settings
 
 
 @lru_cache(maxsize=4)
-def _get_embeddings(model_name: str, device: str, batch_size: int) -> HuggingFaceEmbeddings:
-    """Load and cache an embedding model. Keyed by (model, device, batch_size) so
-    different configs can coexist during tests without re-downloading."""
+def _get_embeddings(
+    model_name: str, device: str, batch_size: int, cache_dir: str
+) -> HuggingFaceEmbeddings:
+    """Load and cache an embedding model.
+
+    Keyed by (model, device, batch_size, cache_dir) so different configs can
+    coexist during tests without re-downloading.
+    """
     return HuggingFaceEmbeddings(
         model_name=model_name,
         model_kwargs={"device": device},
         encode_kwargs={"batch_size": batch_size, "normalize_embeddings": True},
-        cache_folder=".cache_embeddings",
+        cache_folder=cache_dir,
     )
 
 
@@ -24,4 +29,5 @@ def build_embeddings(settings: Settings) -> HuggingFaceEmbeddings:
         model_name=settings.embedding_model,
         device=settings.embedding_device,
         batch_size=settings.embedding_batch_size,
+        cache_dir=str(settings.embedding_cache_dir.resolve()),
     )

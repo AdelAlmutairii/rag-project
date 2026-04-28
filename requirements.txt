@@ -1,11 +1,11 @@
 # ════════════════════════════════════════════════════════════════════════════
 # PDF RAG Assistant — dependencies
 #
-# BEFORE running pip install -r requirements.txt, install the two
-# platform-specific packages manually (see instructions below).
+# Step 1 — install platform-specific packages FIRST (pip cannot handle
+# build-flag-dependent wheels automatically):
 # ════════════════════════════════════════════════════════════════════════════
 
-# ── 1. PyTorch — install the variant for your hardware first ─────────────
+# ── 1. PyTorch — install the variant for your hardware ───────────────────
 #
 #   Apple Silicon (MPS):  pip install torch
 #   CUDA 12.x:            pip install torch --index-url https://download.pytorch.org/whl/cu121
@@ -13,7 +13,11 @@
 #
 torch>=2.0.0
 
-# ── 2. llama-cpp-python — build with GPU support for your platform ───────
+# ── 2. llama-cpp-python — MUST be built with GPU support flags ───────────
+#
+#   Installing this package via requirements.txt or pip install will pull
+#   the CPU-only wheel, silently disabling Metal/CUDA even on GPU machines.
+#   Always install it manually with the correct CMAKE_ARGS first:
 #
 #   Apple Silicon (Metal):  CMAKE_ARGS="-DGGML_METAL=on"  pip install llama-cpp-python
 #   CUDA:                   CMAKE_ARGS="-DGGML_CUDA=on"   pip install llama-cpp-python
@@ -32,7 +36,7 @@ langchain-text-splitters>=0.3.0
 # ── Vector store ─────────────────────────────────────────────────────────
 chromadb>=0.6.0
 
-# ── Embeddings ───────────────────────────────────────────────────────────
+# ── Embeddings & reranking ────────────────────────────────────────────────
 sentence-transformers>=3.0.0
 
 # ── Document loaders ─────────────────────────────────────────────────────

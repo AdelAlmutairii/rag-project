@@ -52,9 +52,11 @@ def load_file(file_path: Path) -> list[Document]:
     loader_cls = SUPPORTED_EXTENSIONS[suffix]
     loader = loader_cls(str(file_path))
     docs = loader.load()
-    # Normalise source path to the file's name so metadata is portable
     for doc in docs:
         doc.metadata["source"] = str(file_path)
+        # Store filename separately so ChromaDB can filter on it without a
+        # $contains scan over full paths (which are machine-specific).
+        doc.metadata["source_name"] = file_path.name
     return docs
 
 
@@ -98,7 +100,9 @@ def chunk_documents(documents: list[Document], settings: Settings) -> list[Docum
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
-        separators=["\n\n", "\n", ". ", " ", ""],
+        # Separators ordered from coarsest to finest structural unit so that
+        # section/paragraph boundaries are preferred over mid-sentence splits.
+        separators=["\n\n\n", "\n\n", "\n", ". ", "! ", "? ", " ", ""],
         length_function=len,
         add_start_index=True,
     )
@@ -108,15 +112,16 @@ def chunk_documents(documents: list[Document], settings: Settings) -> list[Docum
 
 
 def _assign_ids(chunks: list[Document]) -> None:
-    """Assign a deterministic ID to each chunk based on content hash.
+    """Assign a deterministic ID to each chunk based on content hash (SHA-256).
 
-    Storing the same document twice will produce the same IDs, which lets
-    ChromaDB upsert without creating duplicates.
+    Using SHA-256 instead of MD5 eliminates collision risk at scale and avoids
+    birthday-paradox duplicates when ingesting thousands of chunks.  Re-ingesting
+    the same document produces identical IDs, enabling ChromaDB upsert deduplication.
     """
     seen: dict[str, int] = {}
     for chunk in chunks:
-        content_hash = hashlib.md5(chunk.page_content.encode()).hexdigest()[:12]
-        source_hash = hashlib.md5(
+        content_hash = hashlib.sha256(chunk.page_content.encode()).hexdigest()[:16]
+        source_hash = hashlib.sha256(
             chunk.metadata.get("source", "").encode()
         ).hexdigest()[:8]
         base_id = f"{source_hash}-{content_hash}"

@@ -38,9 +38,6 @@ dependencies = [
     # torch is NOT listed here because the correct wheel is platform-dependent.
     # See README "Installation" section.
 
-    # Local LLM (CPU wheel; reinstall with Metal/CUDA flags for GPU — see README)
-    "llama-cpp-python>=0.3.0",
-
     # Document loaders
     "pypdf>=5.0.0",
     "python-docx>=1.1.0",
@@ -56,6 +53,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# llama-cpp-python MUST be installed separately with the correct build flags
+# before installing this package, otherwise pip will pull the CPU-only wheel
+# and silently break GPU offload even on Metal/CUDA hardware:
+#
+#   Apple Silicon:  CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
+#   CUDA:           CMAKE_ARGS="-DGGML_CUDA=on"  pip install llama-cpp-python
+#   CPU only:       pip install llama-cpp-python
+#
+llm = ["llama-cpp-python>=0.3.0"]
 dev = [
     "pytest>=8.0.0",
     "pytest-mock>=3.14.0",

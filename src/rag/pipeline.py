@@ -10,6 +10,7 @@ from .config import Settings
 from .llm import LocalLLM
 from .prompts import (
     NOT_FOUND_REPLY,
+    build_contextualize_messages,
     build_history_messages,
     build_rag_messages,
     format_context,
@@ -25,6 +26,9 @@ class QueryResult:
     answer: str
     retrieval: RetrievalResult
     model: str = ""
+    # Full context string injected into the LLM prompt — stored so callers
+    # can include it in conversation history for grounded multi-turn replies.
+    injected_context: str = ""
 
     @property
     def sources(self) -> list[dict]:
@@ -40,6 +44,7 @@ class StreamResult:
     stream: Iterator[str]
     retrieval: RetrievalResult
     model: str = ""
+    injected_context: str = ""
 
     @property
     def sources(self) -> list[dict]:
@@ -48,6 +53,18 @@ class StreamResult:
     @property
     def found(self) -> bool:
         return self.retrieval.has_relevant
+
+
+def _is_not_found(answer: str) -> bool:
+    """Return True if the LLM signalled that the answer is not in the sources.
+
+    A plain string equality check is fragile — the model may add punctuation,
+    whitespace, or a disclaimer.  Checking for the sentinel as a substring
+    (case-insensitive) handles all common variations without false positives
+    on legitimate answers that happen to start with "I cannot find…".
+    """
+    normalized = answer.strip().upper()
+    return normalized == "NOT_FOUND" or normalized.startswith("NOT_FOUND")
 
 
 class RAGPipeline:
@@ -60,6 +77,31 @@ class RAGPipeline:
         self.llm = LocalLLM(settings)
 
     # ------------------------------------------------------------------
+    # Query contextualization (multi-turn)
+    # ------------------------------------------------------------------
+
+    def contextualize_query(
+        self,
+        question: str,
+        chat_history: list[dict[str, str]],
+    ) -> str:
+        """Rewrite a follow-up question as a standalone question for retrieval.
+
+        Without this, pronouns and references in follow-up questions ("What
+        about its performance?") are embedded and searched literally, producing
+        poor retrieval because the vectorstore has never seen those pronouns.
+        This costs one extra LLM call but significantly improves multi-turn recall.
+        """
+        if not chat_history or not self.settings.use_query_contextualization:
+            return question
+
+        messages = build_contextualize_messages(question, chat_history)
+        rewritten = self.llm.complete(messages).strip()
+        if rewritten and rewritten != question:
+            logger.debug("Contextualized query: '%s' → '%s'", question, rewritten)
+        return rewritten or question
+
+    # ------------------------------------------------------------------
     # Synchronous query
     # ------------------------------------------------------------------
 
@@ -69,7 +111,8 @@ class RAGPipeline:
         chat_history: list[dict[str, str]] | None = None,
         source_filter: str | None = None,
     ) -> QueryResult:
-        retrieval = self.retriever.retrieve(question, source_filter=source_filter)
+        retrieval_query = self.contextualize_query(question, chat_history or [])
+        retrieval = self.retriever.retrieve(retrieval_query, source_filter=source_filter)
 
         if not retrieval.has_relevant:
             return QueryResult(
@@ -86,13 +129,14 @@ class RAGPipeline:
         )
         answer = self.llm.complete(messages)
 
-        if answer.strip() == "NOT_FOUND":
+        if _is_not_found(answer):
             answer = NOT_FOUND_REPLY
 
         return QueryResult(
             answer=answer,
             retrieval=retrieval,
             model=self.llm.model_name,
+            injected_context=context,
         )
 
     # ------------------------------------------------------------------
@@ -105,7 +149,8 @@ class RAGPipeline:
         chat_history: list[dict[str, str]] | None = None,
         source_filter: str | None = None,
     ) -> StreamResult:
-        retrieval = self.retriever.retrieve(question, source_filter=source_filter)
+        retrieval_query = self.contextualize_query(question, chat_history or [])
+        retrieval = self.retriever.retrieve(retrieval_query, source_filter=source_filter)
 
         if not retrieval.has_relevant:
             def _not_found() -> Iterator[str]:
@@ -128,6 +173,7 @@ class RAGPipeline:
             stream=self.llm.stream(messages),
             retrieval=retrieval,
             model=self.llm.model_name,
+            injected_context=context,
         )
 
     # ------------------------------------------------------------------

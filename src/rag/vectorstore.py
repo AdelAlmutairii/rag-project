@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import shutil
 from pathlib import Path
+from typing import Any
 
 import chromadb
 from langchain_chroma import Chroma
@@ -69,8 +70,13 @@ class VectorStore:
             return 0
 
         ids = [c.metadata.get("chunk_id") for c in chunks]
-        # Fall back to positional IDs if ingest didn't assign chunk_id
-        ids = [uid or f"chunk-{i}" for i, uid in enumerate(ids)]
+        # Fallback: derive a deterministic ID from content hash so re-ingestion
+        # still deduplicates correctly even if chunk_id metadata is missing.
+        import hashlib
+        ids = [
+            uid or f"chunk-{hashlib.sha256(chunks[i].page_content.encode()).hexdigest()[:20]}"
+            for i, uid in enumerate(ids)
+        ]
 
         self.store.add_documents(chunks, ids=ids)
 
@@ -81,9 +87,10 @@ class VectorStore:
         self,
         query: str,
         k: int | None = None,
+        filter: dict[str, Any] | None = None,
     ) -> list[tuple[Document, float]]:
         k = k or self.settings.retrieval_k
-        return self.store.similarity_search_with_score(query, k=k)
+        return self.store.similarity_search_with_score(query, k=k, filter=filter)
 
     def as_retriever(self, k: int | None = None):
         """Return a LangChain-compatible retriever (for chain composition)."""
@@ -102,18 +109,15 @@ class VectorStore:
             data = self.store._collection.get(include=["metadatas"])
             sources: set[str] = set()
             for meta in data.get("metadatas") or []:
-                if src := (meta or {}).get("source"):
+                if src := (meta or {}).get("source_name") or (meta or {}).get("source"):
                     sources.add(Path(src).name)
             return sorted(sources)
         except Exception:
             return []
 
     def exists(self) -> bool:
-        """True when the persist directory has data."""
-        return (
-            self.settings.vectorstore_dir.exists()
-            and any(self.settings.vectorstore_dir.iterdir())
-        )
+        """True when the collection contains at least one document."""
+        return self.count() > 0
 
     def reset(self) -> None:
         """Wipe the entire collection and start fresh."""
@@ -124,7 +128,7 @@ class VectorStore:
         logger.warning("Vector store reset — all data deleted")
 
     def delete_source(self, source_name: str) -> int:
-        """Delete all chunks whose metadata 'source' matches *source_name*. Returns deleted count."""
+        """Delete all chunks whose metadata 'source_name' matches *source_name*. Returns deleted count."""
         try:
             results = self.store._collection.get(include=["metadatas"])
             ids_to_delete = [
@@ -132,7 +136,8 @@ class VectorStore:
                 for doc_id, meta in zip(
                     results.get("ids", []), results.get("metadatas") or []
                 )
-                if Path((meta or {}).get("source", "")).name == source_name
+                if (meta or {}).get("source_name") == source_name
+                or Path((meta or {}).get("source", "")).name == source_name
             ]
             if ids_to_delete:
                 self.store._collection.delete(ids=ids_to_delete)

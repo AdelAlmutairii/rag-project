@@ -42,11 +42,19 @@ class Settings(BaseSettings):
 
     # Generation parameters
     max_tokens: int = Field(1024, ge=64, le=8192)
-    temperature: float = Field(0.1, ge=0.0, le=1.0)
+    # temperature=0.0 → fully deterministic; combined with seed below
+    temperature: float = Field(0.0, ge=0.0, le=1.0)
+    # Fixed seed ensures identical questions produce identical answers across runs
+    seed: int = Field(42, description="RNG seed for deterministic generation")
 
     # ── Embeddings ────────────────────────────────────────────────────────
+    # bge-large-en-v1.5 is a retrieval-tuned 768-dim model — significantly
+    # better recall on technical documents than the old all-MiniLM-L6-v2
+    # (384-dim, trained on generic sentence pairs, released 2021).
+    # NOTE: changing this after ingestion requires wiping and re-indexing the
+    # vectorstore (dimensions differ between models).
     embedding_model: str = Field(
-        "sentence-transformers/all-MiniLM-L6-v2",
+        "BAAI/bge-large-en-v1.5",
         description="HuggingFace sentence-transformer model for embeddings",
     )
     embedding_device: Literal["cpu", "cuda", "mps"] = Field(
@@ -54,6 +62,10 @@ class Settings(BaseSettings):
         description="Torch device for the embedding model",
     )
     embedding_batch_size: int = Field(32, ge=1, le=512)
+    embedding_cache_dir: Path = Field(
+        Path(".cache_embeddings"),
+        description="Directory where downloaded embedding model weights are cached",
+    )
 
     # ── ChromaDB ─────────────────────────────────────────────────────────
     vectorstore_dir: Path = Field(
@@ -68,11 +80,44 @@ class Settings(BaseSettings):
 
     # ── Retrieval ─────────────────────────────────────────────────────────
     retrieval_k: int = Field(5, ge=1, le=20)
+    # L2 distance threshold on normalized embeddings.  Range [0, 2] where:
+    #   0.0 = identical,  ~0.8 = cos_sim ≈ 0.68,  1.4 = cos_sim ≈ 0.02 (garbage)
+    # 0.8 is a well-calibrated default; was previously 1.4 which passed
+    # near-random chunks through to the LLM.
     max_distance: float = Field(
-        1.4,
+        0.8,
         ge=0.0,
         le=2.0,
         description="Maximum Chroma L2 distance to consider a chunk relevant",
+    )
+
+    # ── Reranking (cross-encoder, optional) ──────────────────────────────
+    # When enabled, the retriever fetches retrieval_k_fetch candidates first,
+    # reranks them with a cross-encoder, and keeps only the top retrieval_k.
+    # Requires sentence-transformers (already in deps).
+    use_reranker: bool = Field(
+        False,
+        description="Enable cross-encoder reranking after initial retrieval",
+    )
+    reranker_model: str = Field(
+        "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        description="Cross-encoder model used for reranking",
+    )
+    # Fetch more candidates than needed so the reranker has headroom to reorder
+    retrieval_k_fetch: int = Field(
+        20,
+        ge=1,
+        le=100,
+        description="Candidates fetched before reranking (ignored when use_reranker=False)",
+    )
+
+    # ── Query contextualization (multi-turn) ─────────────────────────────
+    # When True, follow-up questions are rewritten into standalone questions
+    # before retrieval, so the vector search is not misled by pronouns/references
+    # that only make sense with the conversation history in scope.
+    use_query_contextualization: bool = Field(
+        False,
+        description="Rewrite follow-up questions as standalone queries (costs one LLM call)",
     )
 
     # ── Paths ─────────────────────────────────────────────────────────────
@@ -89,7 +134,7 @@ class Settings(BaseSettings):
 
     # ── Validators ────────────────────────────────────────────────────────
 
-    @field_validator("vectorstore_dir", "documents_dir", "model_path", mode="before")
+    @field_validator("vectorstore_dir", "documents_dir", "model_path", "embedding_cache_dir", mode="before")
     @classmethod
     def _coerce_path(cls, v) -> Path | None:
         return Path(v) if v is not None else None

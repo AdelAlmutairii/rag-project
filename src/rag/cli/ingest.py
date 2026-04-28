@@ -56,18 +56,23 @@ def main() -> None:
         logging.basicConfig(level=logging.INFO, force=True)
 
     try:
-        settings = Settings()
+        base_settings = Settings()
     except Exception as exc:
         console.print(f"[red]Configuration error:[/red] {exc}")
         console.print("Create a [bold].env[/bold] file in the current directory.")
         sys.exit(1)
 
+    # Use model_copy() rather than mutating the Settings instance directly.
+    # Direct attribute assignment on a Pydantic model is an antipattern and
+    # bypasses validation; model_copy creates a properly validated new instance.
+    overrides: dict = {}
     if args.chunk_size is not None:
-        settings.chunk_size = args.chunk_size
+        overrides["chunk_size"] = args.chunk_size
     if args.chunk_overlap is not None:
-        settings.chunk_overlap = args.chunk_overlap
+        overrides["chunk_overlap"] = args.chunk_overlap
     if args.device is not None:
-        settings.embedding_device = args.device
+        overrides["embedding_device"] = args.device
+    settings = base_settings.model_copy(update=overrides) if overrides else base_settings
 
     vectorstore = VectorStore(settings)
 
