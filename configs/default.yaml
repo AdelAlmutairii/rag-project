@@ -15,14 +15,14 @@ mistral:
   #   mistral-small-latest  — stronger reasoning
   #   mistral-large-latest  — highest quality, highest cost
   max_tokens: 1024
-  temperature: 0.1          # 0 = deterministic, 1 = creative
+  temperature: 0.0          # 0 = deterministic, 1 = creative
 
 embeddings:
-  model: sentence-transformers/all-MiniLM-L6-v2
-  # Alternatives (higher quality, slower):
-  #   sentence-transformers/all-mpnet-base-v2
-  #   BAAI/bge-small-en-v1.5
+  model: BAAI/bge-large-en-v1.5
+  # Alternatives (lighter, faster):
   #   BAAI/bge-base-en-v1.5
+  #   BAAI/bge-small-en-v1.5
+  #   sentence-transformers/all-MiniLM-L6-v2  (384-dim, older, less accurate)
   device: cpu               # cpu | cuda | mps
   batch_size: 32
 
@@ -39,14 +39,14 @@ chunking:
 
 retrieval:
   k: 5                      # chunks retrieved per query
-  max_distance: 1.4         # Chroma L2 distance threshold
-  # Distance interpretation (with normalised embeddings):
-  #   0.0 — identical vectors
-  #   1.0 — orthogonal (unrelated)
-  #   2.0 — opposite directions (antonyms)
-  # Typical good matches: 0.3–0.9
-  # Looser threshold (more recall): 1.6–1.8
-  # Stricter threshold (more precision): 0.8–1.2
+  max_distance: 0.8         # Chroma L2 distance threshold
+  # Distance interpretation (with normalised embeddings, range [0, 2]):
+  #   0.0  — identical vectors
+  #   ~0.8 — cosine similarity ≈ 0.68  (default — well-calibrated cutoff)
+  #   1.41 — orthogonal (unrelated)
+  #   2.0  — opposite directions
+  # Too many "not found": raise to 1.0–1.2
+  # Too many off-topic chunks: lower to 0.6–0.7
 
 paths:
   documents_dir: data/documents

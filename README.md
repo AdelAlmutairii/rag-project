@@ -47,7 +47,7 @@ PDF / TXT / DOCX
 | Component | Technology |
 |---|---|
 | LLM | Ministral-8B-Instruct-2410 (GGUF, quantised Q4_K_M) |
-| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` (local) |
+| Embeddings | `BAAI/bge-large-en-v1.5` (local) |
 | Vector store | ChromaDB (persisted on disk) |
 | Inference engine | llama-cpp-python (Metal / CUDA / CPU) |
 | Orchestration | LangChain |
@@ -161,13 +161,13 @@ All settings are read from environment variables or a `.env` file. See [`.env.ex
 | `N_GPU_LAYERS` | `-1` | Layers offloaded to GPU (`-1` = all, `0` = CPU only) |
 | `N_THREADS` | `8` | CPU threads for inference |
 | `MAX_TOKENS` | `1024` | Maximum generated tokens per response |
-| `TEMPERATURE` | `0.1` | Sampling temperature (0 = deterministic) |
-| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Local embedding model |
+| `TEMPERATURE` | `0.0` | Sampling temperature (0 = deterministic) |
+| `EMBEDDING_MODEL` | `BAAI/bge-large-en-v1.5` | Local embedding model |
 | `EMBEDDING_DEVICE` | `cpu` | `cpu`, `cuda`, or `mps` |
 | `CHUNK_SIZE` | `1000` | Characters per chunk |
 | `CHUNK_OVERLAP` | `200` | Overlap between chunks |
 | `RETRIEVAL_K` | `5` | Chunks retrieved per query |
-| `MAX_DISTANCE` | `1.4` | Chroma L2 distance cut-off (lower = stricter) |
+| `MAX_DISTANCE` | `0.8` | Chroma L2 distance cut-off (lower = stricter) |
 | `VECTORSTORE_DIR` | `data/vectorstore` | ChromaDB persistence path |
 | `DOCUMENTS_DIR` | `data/documents` | Default ingestion directory |
 
@@ -203,17 +203,15 @@ rag-project/
 │           ├── ingest.py        # rag-ingest entry point
 │           └── query.py         # rag-query entry point
 │
-├── scripts/
-│   ├── ingest_docs.py           # thin wrapper (backward compat)
-│   └── query.py                 # thin wrapper (backward compat)
-│
 ├── tests/
 │   ├── conftest.py
 │   ├── test_ingest.py
 │   ├── test_retriever.py
-│   └── test_pipeline.py
+│   ├── test_pipeline.py
+│   ├── test_prompts.py
+│   └── test_llm.py
 │
-├── configs/default.yaml         # parameter documentation + defaults
+├── configs/default.yaml         # parameter documentation (not loaded by app)
 ├── data/documents/              # drop your files here (git-ignored)
 ├── .env.example
 ├── conftest.py                  # puts src/ on sys.path for pytest

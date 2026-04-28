@@ -26,6 +26,7 @@ class VectorStore:
         self.settings = settings
         self._client: chromadb.PersistentClient | None = None
         self._store: Chroma | None = None
+        self._chroma_col = None  # chromadb.Collection, set in _open()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -41,6 +42,12 @@ class VectorStore:
         abs_dir = self.settings.vectorstore_dir.resolve()
         abs_dir.mkdir(parents=True, exist_ok=True)
         self._client = chromadb.PersistentClient(path=str(abs_dir))
+        # Cache the raw Collection via the public client API so admin methods
+        # (count, list_sources, delete_source) don't have to reach into the
+        # langchain Chroma wrapper's private _collection attribute.
+        self._chroma_col = self._client.get_or_create_collection(
+            name=self.settings.collection_name
+        )
         return Chroma(
             client=self._client,
             embedding_function=self._embeddings(),
@@ -52,6 +59,7 @@ class VectorStore:
         if self._client is not None:
             self._client.close()
             self._client = None
+        self._chroma_col = None
         self._store = None
 
     @property
@@ -59,6 +67,12 @@ class VectorStore:
         if self._store is None:
             self._store = self._open()
         return self._store
+
+    @property
+    def _col(self):
+        """Public-API handle to the underlying chromadb Collection."""
+        _ = self.store  # ensure _open() has run
+        return self._chroma_col
 
     # ------------------------------------------------------------------
     # Public API
@@ -99,14 +113,14 @@ class VectorStore:
 
     def count(self) -> int:
         try:
-            return self.store._collection.count()
+            return self._col.count()
         except Exception:
             return 0
 
     def list_sources(self) -> list[str]:
         """Return unique source file paths stored in metadata."""
         try:
-            data = self.store._collection.get(include=["metadatas"])
+            data = self._col.get(include=["metadatas"])
             sources: set[str] = set()
             for meta in data.get("metadatas") or []:
                 if src := (meta or {}).get("source_name") or (meta or {}).get("source"):
@@ -130,7 +144,7 @@ class VectorStore:
     def delete_source(self, source_name: str) -> int:
         """Delete all chunks whose metadata 'source_name' matches *source_name*. Returns deleted count."""
         try:
-            results = self.store._collection.get(include=["metadatas"])
+            results = self._col.get(include=["metadatas"])
             ids_to_delete = [
                 doc_id
                 for doc_id, meta in zip(
@@ -140,7 +154,7 @@ class VectorStore:
                 or Path((meta or {}).get("source", "")).name == source_name
             ]
             if ids_to_delete:
-                self.store._collection.delete(ids=ids_to_delete)
+                self._col.delete(ids=ids_to_delete)
                 logger.info("Deleted %d chunks for source '%s'", len(ids_to_delete), source_name)
             self._close()
             return len(ids_to_delete)
