@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "rag-project"
+version = "0.1.0"
+description = "Local RAG pipeline for PDF question-answering — powered by Ministral + ChromaDB"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["rag", "llm", "ministral", "mistral", "pdf", "chromadb", "langchain", "llama-cpp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    # LangChain
+    "langchain>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-chroma>=0.1.4",
+    "langchain-huggingface>=0.1.2",
+    "langchain-text-splitters>=0.3.0",
+
+    # Vector store
+    "chromadb>=0.6.0",
+
+    # Embeddings
+    "sentence-transformers>=3.0.0",
+    # torch is NOT listed here because the correct wheel is platform-dependent.
+    # See README "Installation" section.
+
+    # Local LLM (CPU wheel; reinstall with Metal/CUDA flags for GPU — see README)
+    "llama-cpp-python>=0.3.0",
+
+    # Document loaders
+    "pypdf>=5.0.0",
+    "python-docx>=1.1.0",
+
+    # Configuration
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "python-dotenv>=1.0.0",
+
+    # Web UI
+    "streamlit>=1.40.0",
+
+    # CLI
+    "rich>=13.7.0",
+
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.14.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+    "pytest-cov>=5.0.0",
+]
+
+# ── Console scripts (created by pip install) ──────────────────────────────────
+[project.scripts]
+rag-app    = "rag.app:launch"
+rag-ingest = "rag.cli.ingest:main"
+rag-query  = "rag.cli.query:main"
+
+# ── Package discovery ─────────────────────────────────────────────────────────
+[tool.setuptools.packages.find]
+where = ["src"]   # look in src/ — installs package "rag" (not "src.rag")
+
+[tool.setuptools.package-data]
+rag = ["app/main.py", "py.typed"]
+
+# ── Ruff ─────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["rag"]
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts   = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+# ── Mypy ─────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version         = "3.10"
+strict                 = false
+ignore_missing_imports = true

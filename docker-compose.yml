@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  rag-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: rag-project:latest
+    container_name: rag-assistant
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      EMBEDDING_DEVICE: cpu
+      VECTORSTORE_DIR: /app/data/vectorstore
+      DOCUMENTS_DIR: /app/data/documents
+    volumes:
+      # Persist vector store and uploaded documents across restarts
+      - rag-vectorstore:/app/data/vectorstore
+      - rag-documents:/app/data/documents
+      - rag-cache:/app/.cache_embeddings
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: run the ingest CLI against the same volumes
+  rag-ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: rag-project:latest
+    container_name: rag-ingest
+    profiles: ["ingest"]   # only runs with: docker compose --profile ingest up rag-ingest
+    env_file:
+      - .env
+    environment:
+      EMBEDDING_DEVICE: cpu
+      VECTORSTORE_DIR: /app/data/vectorstore
+      DOCUMENTS_DIR: /app/data/documents
+    volumes:
+      - rag-vectorstore:/app/data/vectorstore
+      - rag-documents:/app/data/documents
+      - rag-cache:/app/.cache_embeddings
+    command: ["python", "scripts/ingest_docs.py"]
+
+volumes:
+  rag-vectorstore:
+  rag-documents:
+  rag-cache:

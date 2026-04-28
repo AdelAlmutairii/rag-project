@@ -1,0 +1,56 @@
+# ════════════════════════════════════════════════════════════════════════════
+# PDF RAG Assistant — dependencies
+#
+# BEFORE running pip install -r requirements.txt, install the two
+# platform-specific packages manually (see instructions below).
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── 1. PyTorch — install the variant for your hardware first ─────────────
+#
+#   Apple Silicon (MPS):  pip install torch
+#   CUDA 12.x:            pip install torch --index-url https://download.pytorch.org/whl/cu121
+#   CPU only:             pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+torch>=2.0.0
+
+# ── 2. llama-cpp-python — build with GPU support for your platform ───────
+#
+#   Apple Silicon (Metal):  CMAKE_ARGS="-DGGML_METAL=on"  pip install llama-cpp-python
+#   CUDA:                   CMAKE_ARGS="-DGGML_CUDA=on"   pip install llama-cpp-python
+#   CPU only (no flags):    pip install llama-cpp-python
+#
+llama-cpp-python>=0.3.0
+
+# ── LangChain stack ──────────────────────────────────────────────────────
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-chroma>=0.1.4
+langchain-huggingface>=0.1.2
+langchain-text-splitters>=0.3.0
+
+# ── Vector store ─────────────────────────────────────────────────────────
+chromadb>=0.6.0
+
+# ── Embeddings ───────────────────────────────────────────────────────────
+sentence-transformers>=3.0.0
+
+# ── Document loaders ─────────────────────────────────────────────────────
+pypdf>=5.0.0
+python-docx>=1.1.0
+
+# ── Configuration ─────────────────────────────────────────────────────────
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+python-dotenv>=1.0.0
+
+# ── Web UI ────────────────────────────────────────────────────────────────
+streamlit>=1.40.0
+
+# ── CLI ───────────────────────────────────────────────────────────────────
+rich>=13.7.0
+
+# ── Development / testing (optional) ─────────────────────────────────────
+pytest>=8.0.0
+pytest-mock>=3.14.0
+pytest-cov>=5.0.0

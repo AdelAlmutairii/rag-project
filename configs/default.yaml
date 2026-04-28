@@ -1,0 +1,52 @@
+# ════════════════════════════════════════════════════════════════════════════
+# RAG Pipeline — Default Configuration
+#
+# These values document all tuneable parameters. The application reads
+# settings from environment variables (or .env), NOT from this file.
+# Use this as a reference when setting env vars or for tooling that
+# reads YAML configs.
+# ════════════════════════════════════════════════════════════════════════════
+
+mistral:
+  model: ministral-8b-latest
+  # Available Mistral models (as of 2025):
+  #   ministral-3b-latest   — fastest, lowest cost
+  #   ministral-8b-latest   — good balance of speed and quality  ✓ default
+  #   mistral-small-latest  — stronger reasoning
+  #   mistral-large-latest  — highest quality, highest cost
+  max_tokens: 1024
+  temperature: 0.1          # 0 = deterministic, 1 = creative
+
+embeddings:
+  model: sentence-transformers/all-MiniLM-L6-v2
+  # Alternatives (higher quality, slower):
+  #   sentence-transformers/all-mpnet-base-v2
+  #   BAAI/bge-small-en-v1.5
+  #   BAAI/bge-base-en-v1.5
+  device: cpu               # cpu | cuda | mps
+  batch_size: 32
+
+vectorstore:
+  dir: data/vectorstore
+  collection_name: rag_documents
+
+chunking:
+  chunk_size: 1000          # characters per chunk
+  chunk_overlap: 200        # overlap between consecutive chunks
+  # Tuning guidance:
+  #   - Dense technical docs: chunk_size=600, overlap=100
+  #   - Long narrative text: chunk_size=1200, overlap=300
+
+retrieval:
+  k: 5                      # chunks retrieved per query
+  max_distance: 1.4         # Chroma L2 distance threshold
+  # Distance interpretation (with normalised embeddings):
+  #   0.0 — identical vectors
+  #   1.0 — orthogonal (unrelated)
+  #   2.0 — opposite directions (antonyms)
+  # Typical good matches: 0.3–0.9
+  # Looser threshold (more recall): 1.6–1.8
+  # Stricter threshold (more precision): 0.8–1.2
+
+paths:
+  documents_dir: data/documents
