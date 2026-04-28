@@ -1,16 +1,16 @@
 # PDF RAG Assistant
 
-A local Retrieval-Augmented Generation (RAG) pipeline that runs **entirely on your machine** — no API keys, no cloud. Upload PDF documents and ask natural-language questions about them, powered by **Ministral 8B** running via llama.cpp and **ChromaDB** for semantic retrieval.
+A local Retrieval-Augmented Generation (RAG) pipeline that runs **entirely on your machine** — no API keys, no cloud. Ingest PDF documents and ask natural-language questions about them via the terminal, powered by **Ministral 8B** running via llama.cpp and **ChromaDB** for semantic retrieval.
 
 ## Features
 
 - **100% local inference** — Ministral 8B GGUF via llama-cpp-python; model downloads once (~5 GB) and runs offline after that
 - **Multi-format ingestion** — PDF, TXT, Markdown, DOCX
-- **Streaming responses** — token-by-token output in the web UI
+- **Streaming responses** — token-by-token output in the terminal
 - **Inline citations** — every answer links back to the source chunk and page number
 - **Multi-turn chat** — conversation history injected into the model context
 - **Upsert deduplication** — re-ingesting the same document won't create duplicate chunks
-- **Three interfaces** — Streamlit web UI, interactive terminal REPL, and a batch-ingest CLI
+- **Two CLI commands** — batch-ingest documents and an interactive query REPL
 - **Configurable** — all parameters (model, chunk size, retrieval threshold, …) via `.env`
 - **Docker-ready** — two-stage Dockerfile + Compose file included
 
@@ -51,112 +51,106 @@ PDF / TXT / DOCX
 | Vector store | ChromaDB (persisted on disk) |
 | Inference engine | llama-cpp-python (Metal / CUDA / CPU) |
 | Orchestration | LangChain |
-| Web UI | Streamlit |
 | CLI | Rich + argparse |
 
 ---
 
 ## Installation
 
-### Option A — Install directly from GitHub *(recommended for end users)*
+### Prerequisites — install these first (platform-specific)
 
+**PyTorch:**
 ```bash
-# 1. Install PyTorch for your platform
-#    Apple Silicon:
+# Apple Silicon
 pip install torch
-#    CUDA 12.x:
+# CUDA 12.x
 pip install torch --index-url https://download.pytorch.org/whl/cu121
-#    CPU only:
+# CPU only
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-# 2. Install llama-cpp-python with GPU support for your platform
-#    Apple Silicon (Metal — recommended, ~5× faster than CPU):
-CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
-#    CUDA:
-CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
-#    CPU only (no flags needed):
-pip install llama-cpp-python
-
-# 3. Install the RAG package and all remaining dependencies
-pip install "rag-project @ git+https://github.com/adelalmutairii/rag-project.git"
 ```
 
-After installation, three commands become available in your shell:
+**llama-cpp-python (with GPU acceleration):**
+```bash
+# Apple Silicon (Metal — ~5× faster than CPU)
+CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
+# CUDA
+CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
+# CPU only
+pip install llama-cpp-python
+```
+
+### Install the package
+
+**Option A — from GitHub (end users):**
+```bash
+pip install "rag-project @ git+https://github.com/AdelAlmutairii/rag-project.git"
+```
+
+**Option B — editable install from a local clone (development):**
+```bash
+git clone https://github.com/AdelAlmutairii/rag-project.git
+cd rag-project
+pip install -e ".[dev]"
+```
+
+After installation two commands are available in your shell:
 
 | Command | What it does |
 |---|---|
-| `rag-app` | Launch the Streamlit web UI |
-| `rag-ingest` | Batch-ingest documents from a directory |
+| `rag-ingest` | Batch-ingest documents into the vector store |
 | `rag-query` | Interactive terminal REPL |
-
-### Option B — Clone and install in editable mode *(for development)*
-
-```bash
-git clone https://github.com/adelalmutairii/rag-project.git
-cd rag-project
-
-python -m venv .venv
-source .venv/bin/activate     # Windows: .venv\Scripts\activate
-
-# Install PyTorch + llama-cpp-python as above, then:
-pip install -e ".[dev]"
-```
 
 ---
 
 ## Quick Start
 
-### 1. Create a working directory and configure
+### 1. Configure
+
+Copy `.env.example` to `.env` in your working directory:
+```bash
+cp .env.example .env
+```
+
+The defaults work out of the box — the model is downloaded automatically on first run (~5 GB, cached in `~/.cache/huggingface/`).
+
+### 2. Add documents
 
 ```bash
-mkdir my-docs && cd my-docs
-
-# Create a minimal .env (copy from the repo's .env.example)
-cat > .env << 'EOF'
-MODEL_REPO=bartowski/Ministral-8B-Instruct-2410-GGUF
-MODEL_FILENAME=Ministral-8B-Instruct-2410-Q4_K_M.gguf
-EOF
-
-# Create the documents folder
 mkdir -p data/documents
+cp /path/to/your/files.pdf data/documents/
 ```
 
-Copy your PDF files into `data/documents/`.
-
-### 2. Ingest your documents
+### 3. Ingest
 
 ```bash
-rag-ingest
-# Or for a specific directory:
-rag-ingest --dir /path/to/pdfs
-
-# Single file:
-rag-ingest --file report.pdf
+rag-ingest                          # reads data/documents/ by default
+rag-ingest --file report.pdf        # single file
+rag-ingest --dir /path/to/pdfs      # custom directory
+rag-ingest --reset --dir ./docs     # wipe store and re-ingest
 ```
 
-> **First run:** the Ministral model (~5 GB) is downloaded from HuggingFace and cached in `~/.cache/huggingface/`. Subsequent runs load it from cache.
+### 4. Query
 
-### 3. Ask questions
-
-**Web UI:**
 ```bash
-rag-app
-# Open http://localhost:8501
+rag-query                                        # interactive REPL
+rag-query --question "What is the main finding?" # single question
+rag-query --source report.pdf                    # restrict to one document
 ```
 
-**Terminal REPL:**
-```bash
-rag-query
+**Inside the REPL:**
 
-# Single question (non-interactive):
-rag-query --question "What is the main finding?"
-```
+| Command | Action |
+|---|---|
+| Type a question + Enter | Ask anything |
+| `/sources` | List indexed documents |
+| `/reset` | Clear chat history |
+| `/quit` | Exit |
 
 ---
 
 ## Configuration
 
-All settings are read from environment variables (or a `.env` file in the current directory). See [`.env.example`](.env.example) for the full list.
+All settings are read from environment variables or a `.env` file. See [`.env.example`](.env.example) for the full list.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -179,7 +173,7 @@ All settings are read from environment variables (or a `.env` file in the curren
 
 ### Alternative GGUF models
 
-Any GGUF model that follows the Mistral/ChatML chat template works. Drop-in alternatives:
+Any GGUF model that follows the Mistral/ChatML chat template works:
 
 | Model | Size (Q4_K_M) | Repo |
 |---|---|---|
@@ -204,15 +198,11 @@ rag-project/
 │       ├── llm.py               # llama-cpp-python wrapper (sync + stream)
 │       ├── retriever.py         # semantic search + distance filter
 │       ├── pipeline.py          # RAGPipeline orchestrator
-│       ├── app/
-│       │   ├── __init__.py      # `rag-app` entry point → launch()
-│       │   └── main.py          # Streamlit chat UI
 │       └── cli/
 │           ├── __init__.py
-│           ├── ingest.py        # `rag-ingest` entry point
-│           └── query.py         # `rag-query` entry point
+│           ├── ingest.py        # rag-ingest entry point
+│           └── query.py         # rag-query entry point
 │
-├── app/main.py                  # thin wrapper (backward compat)
 ├── scripts/
 │   ├── ingest_docs.py           # thin wrapper (backward compat)
 │   └── query.py                 # thin wrapper (backward compat)
@@ -242,7 +232,7 @@ rag-project/
 # Run tests (no model or API needed — LLM is mocked)
 make test
 
-# With coverage:
+# With coverage
 make test-cov
 
 # Lint + format
@@ -255,11 +245,14 @@ make format
 ## Docker
 
 ```bash
-# Build and start the web UI (CPU inference inside the container)
-docker compose up --build
+# Build the image
+docker compose build
 
-# Ingest documents into the containerised store
-docker compose --profile ingest run rag-ingest
+# Ingest documents
+docker compose run rag-ingest
+
+# Interactive query REPL
+docker compose run rag-query
 ```
 
 Model weights are cached in a named Docker volume so they survive container restarts.

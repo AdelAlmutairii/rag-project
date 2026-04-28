@@ -6,7 +6,7 @@
 #   2. Direct (no install)       → sets PYTHONPATH=src and calls modules
 # ════════════════════════════════════════════════════════════════════════════
 
-.PHONY: help install install-dev ingest ingest-reset ingest-file query app \
+.PHONY: help install install-dev ingest ingest-reset ingest-file query \
         test test-cov lint format type-check clean reset-store
 
 PYTHON    ?= python
@@ -32,7 +32,6 @@ help:
 	@echo "    ingest-file    Ingest a single file: make ingest-file FILE=path/to/doc.pdf"
 	@echo ""
 	@echo "  Run"
-	@echo "    app            Launch Streamlit web UI"
 	@echo "    query          Launch interactive terminal REPL"
 	@echo ""
 	@echo "  Quality"
@@ -71,9 +70,6 @@ ingest-file:
 	$(PYTHON) -m rag.cli.ingest --file $(FILE)
 
 # ── Run ──────────────────────────────────────────────────────────────────────
-
-app:
-	streamlit run src/rag/app/main.py
 
 query:
 	$(PYTHON) -m rag.cli.query

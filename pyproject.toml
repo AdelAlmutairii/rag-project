@@ -50,9 +50,6 @@ dependencies = [
     "pydantic-settings>=2.3.0",
     "python-dotenv>=1.0.0",
 
-    # Web UI
-    "streamlit>=1.40.0",
-
     # CLI
     "rich>=13.7.0",
 
@@ -69,7 +66,6 @@ dev = [
 
 # ── Console scripts (created by pip install) ──────────────────────────────────
 [project.scripts]
-rag-app    = "rag.app:launch"
 rag-ingest = "rag.cli.ingest:main"
 rag-query  = "rag.cli.query:main"
 
@@ -78,7 +74,7 @@ rag-query  = "rag.cli.query:main"
 where = ["src"]   # look in src/ — installs package "rag" (not "src.rag")
 
 [tool.setuptools.package-data]
-rag = ["app/main.py", "py.typed"]
+rag = ["py.typed"]
 
 # ── Ruff ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
