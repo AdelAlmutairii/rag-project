@@ -18,10 +18,7 @@ from the sources provided below.
 Rules:
 1. Base every claim on the provided sources. Never use outside knowledge.
 2. If the sources do not contain enough information to answer, output exactly: NOT_FOUND
-3. Otherwise, cite sources inline using [Source N] notation.
-4. After your answer add a "Citations" section with 1-3 bullet points, each quoting \
-   an exact short phrase from the sources and referencing the corresponding [Source N].
-5. Be concise and direct. Do not pad your answer."""
+3. Answer comprehensively. Explain the relevant details, include examples from the sources where useful, and cover related context the sources provide. Do not invent information, but do not omit it either."""
 
 # Used by pipeline.contextualize_query to rewrite follow-up questions into
 # standalone questions before retrieval, so the vector search is not misled

@@ -14,7 +14,7 @@ mistral:
   #   ministral-8b-latest   — good balance of speed and quality  ✓ default
   #   mistral-small-latest  — stronger reasoning
   #   mistral-large-latest  — highest quality, highest cost
-  max_tokens: 1024
+  max_tokens: 4096
   temperature: 0.0          # 0 = deterministic, 1 = creative
 
 embeddings:

@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     n_batch: int = Field(512, ge=1, description="Batch size for prompt processing")
 
     # Generation parameters
-    max_tokens: int = Field(1024, ge=64, le=8192)
+    max_tokens: int = Field(4096, ge=64, le=8192)
     # temperature=0.0 → fully deterministic; combined with seed below
     temperature: float = Field(0.0, ge=0.0, le=1.0)
     # Fixed seed ensures identical questions produce identical answers across runs
